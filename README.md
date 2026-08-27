@@ -1,4 +1,3 @@
- 
 # Crypto-TMS — Money-Laundering Detection on a Transaction Graph
 
 ## Group 6
