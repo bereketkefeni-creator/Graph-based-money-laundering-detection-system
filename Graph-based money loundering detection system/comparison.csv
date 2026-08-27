@@ -1,0 +1,3 @@
+method,illicit_precision,illicit_recall,illicit_f1
+Method 1: Tabular RF,0.8026,0.7322,0.7658
+Method 2: Graph-feature RF,0.8731,0.7304,0.7954

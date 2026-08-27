@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Crypto-TMS | AML Forensic Dashboard</title>
+<meta name="description" content="Crypto-TMS — money-laundering detection on the Elliptic Bitcoin transaction graph. Compare tabular vs. graph-feature Random Forest verdicts on real test-set transactions.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M32 4 8 14v16c0 16 10 27 24 30 14-3 24-14 24-30V14L32 4z' fill='%232563eb' stroke='%23172554' stroke-width='2'/%3E%3Cpath d='M32 4 8 14v16c0 16 10 27 24 30 14-3 24-14 24-30V14L32 4z' fill='none' stroke='%2360a5fa' stroke-width='1'/%3E%3Ccircle cx='32' cy='28' r='7' fill='none' stroke='%23f8fafc' stroke-width='3'/%3E%3Cline x1='37' y1='33' x2='44' y2='40' stroke='%23f8fafc' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<style>
+body{background:#0f172a}
+#network{height:520px;background:#f8fafc;border-radius:12px}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+</style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+
+<nav class="bg-slate-900 border-b border-slate-700 p-5">
+  <div class="max-w-7xl mx-auto flex justify-between items-center gap-4">
+    <div>
+      <h1 class="text-xl font-bold">🛡️ Crypto-TMS</h1>
+      <p class="text-xs text-slate-400 mono">Elliptic Money-Laundering Detection</p>
+    </div>
+    <div id="status" class="text-sm mono text-yellow-400">Load dashboard_data.json</div>
+  </div>
+</nav>
+
+<main class="max-w-7xl mx-auto p-5">
+  <section class="bg-slate-900 border border-slate-700 rounded-xl p-5 mb-6">
+    <h2 class="font-bold text-lg mb-3">1. Load your real dashboard data</h2>
+    <div class="flex flex-wrap gap-3 items-center">
+      <input id="file" type="file" accept=".json,application/json"
+        class="text-sm bg-slate-800 border border-slate-600 rounded-lg p-2">
+      <button id="random" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-semibold">
+        Random Transaction
+      </button>
+    </div>
+    <p class="text-xs text-slate-400 mt-3">
+      Select the <b>dashboard_data.json</b> that is in your money laundering folder.
+      This version does not depend on localhost or fetch(), so it also works when opened directly.
+    </p>
+    <pre id="error" class="hidden mt-4 p-3 rounded bg-red-950 border border-red-700 text-red-300 text-xs whitespace-pre-wrap"></pre>
+  </section>
+
+  <div class="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
+    <div class="bg-slate-900 border border-slate-700 rounded-xl p-4">
+      <p class="text-xs text-slate-400 mono">TEST RECORDS</p><p id="n" class="text-2xl font-bold mt-2">—</p>
+    </div>
+    <div class="bg-slate-900 border border-slate-700 rounded-xl p-4">
+      <p class="text-xs text-slate-400 mono">ILLICIT M1</p><p id="illicit" class="text-2xl font-bold text-red-400 mt-2">—</p>
+    </div>
+    <div class="bg-slate-900 border border-slate-700 rounded-xl p-4">
+      <p class="text-xs text-slate-400 mono">LICIT M1</p><p id="licit" class="text-2xl font-bold text-green-400 mt-2">—</p>
+    </div>
+    <div class="bg-slate-900 border border-slate-700 rounded-xl p-4">
+      <p class="text-xs text-slate-400 mono">GRAPH RECORDS</p><p id="graphn" class="text-2xl font-bold text-blue-400 mt-2">—</p>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="space-y-6">
+
+      <section class="bg-slate-900 border border-slate-700 rounded-xl p-5">
+        <h2 class="font-bold text-lg mb-4">🔍 Transaction Lookup</h2>
+        <div class="flex gap-2">
+          <input id="search" placeholder="Transaction ID"
+            class="flex-1 bg-slate-950 border border-slate-600 rounded-lg px-3 py-2 mono">
+          <button id="scan" class="bg-blue-600 hover:bg-blue-700 px-4 rounded-lg font-semibold">Scan</button>
+        </div>
+        <p id="searchError" class="hidden text-red-400 text-xs mt-3"></p>
+      </section>
+
+      <section class="bg-slate-900 border border-slate-700 rounded-xl p-5">
+        <h2 class="font-bold text-lg mb-4">⚖️ Model Verdicts</h2>
+
+        <div class="bg-slate-950 rounded-lg p-4 mb-4 border border-slate-700">
+          <p class="text-xs text-blue-400 mono font-bold">METHOD 1 — TABULAR RF</p>
+          <p id="m1" class="font-bold mt-2 text-slate-500">—</p>
+          <p id="p1" class="text-xs text-slate-400 mono mt-2"></p>
+        </div>
+
+        <div class="bg-slate-950 rounded-lg p-4 mb-4 border border-slate-700">
+          <p class="text-xs text-purple-400 mono font-bold">METHOD 2 — GRAPH-ENHANCED RF</p>
+          <p id="m2" class="font-bold mt-2 text-slate-500">—</p>
+          <p id="p2" class="text-xs text-slate-400 mono mt-2"></p>
+        </div>
+
+        <div class="bg-slate-950 rounded-lg p-4 border border-slate-700">
+          <p class="text-xs text-slate-400 mono font-bold">GROUND TRUTH</p>
+          <p id="truth" class="font-bold mt-2 text-slate-500">—</p>
+        </div>
+      </section>
+
+      <section class="bg-slate-900 border border-slate-700 rounded-xl p-5">
+        <h2 class="font-bold text-lg mb-4">📊 Graph Features</h2>
+        <div id="stats" class="text-sm mono text-slate-300 space-y-2">—</div>
+      </section>
+    </div>
+
+    <div class="lg:col-span-2">
+      <section class="bg-slate-900 border border-slate-700 rounded-xl p-5">
+        <h2 class="font-bold text-lg mb-1">🌐 Real Neighbor Graph</h2>
+        <p class="text-xs text-slate-400 mono mb-4">1-hop neighbors from your exported data</p>
+        <div id="network" class="flex items-center justify-center text-slate-500">
+          Load JSON and select a transaction.
+        </div>
+        <div class="flex gap-6 text-xs mono text-slate-400 mt-4">
+          <span>🔴 Target</span><span>⚪ Neighbor</span>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<script>
+let records = [];
+let byId = {};
+let net = null;
+
+const $ = id => document.getElementById(id);
+
+function pred(v){
+  if(v === true) return 1;
+  if(v === false) return 0;
+  if(typeof v === "string"){
+    v=v.toLowerCase().trim();
+    if(["1","illicit","fraud","illegal"].includes(v)) return 1;
+    if(["0","licit","legal"].includes(v)) return 0;
+  }
+  return Number(v) === 1 ? 1 : 0;
+}
+
+function num(v, fallback=null){
+  const n=Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function norm(r){
+  const id=r.txId ?? r.tx_id ?? r.transaction_id ?? r.transactionId ?? r.id;
+  const ni=r.neighbors_in ?? r.neighborsIn ?? r.in_neighbors ?? [];
+  const no=r.neighbors_out ?? r.neighborsOut ?? r.out_neighbors ?? [];
+  return {
+    ...r,
+    txId:id,
+    time_step:r.time_step ?? r.timeStep ?? r.time ?? null,
+    m1_pred:pred(r.m1_pred ?? r.m1_prediction ?? r.tabular_pred ?? r.rf_pred),
+    m2_pred:pred(r.m2_pred ?? r.m2_prediction ?? r.graph_pred ?? r.graph_rf_pred),
+    m1_proba_illicit:num(r.m1_proba_illicit ?? r.m1_probability ?? r.tabular_proba_illicit),
+    m2_proba_illicit:num(r.m2_proba_illicit ?? r.m2_probability ?? r.graph_proba_illicit),
+    true_label:r.true_label == null ? null : pred(r.true_label),
+    in_degree:r.in_degree ?? r.inDegree ?? (Array.isArray(ni)?ni.length:0),
+    out_degree:r.out_degree ?? r.outDegree ?? (Array.isArray(no)?no.length:0),
+    pagerank:r.pagerank ?? r.pageRank ?? null,
+    neighbors_in:Array.isArray(ni)?ni:[],
+    neighbors_out:Array.isArray(no)?no:[]
+  };
+}
+
+function verdict(p,prob){
+  if(p===1) return ["🚨 ILLICIT","text-red-400"];
+  return ["🟢 LICIT","text-green-400"];
+}
+
+function show(r){
+  const [a,ac]=verdict(r.m1_pred,r.m1_proba_illicit);
+  $("m1").textContent=a; $("m1").className="font-bold mt-2 "+ac;
+  $("p1").textContent=r.m1_proba_illicit==null?"Probability unavailable":"P(illicit) = "+r.m1_proba_illicit;
+
+  const [b,bc]=verdict(r.m2_pred,r.m2_proba_illicit);
+  $("m2").textContent=b; $("m2").className="font-bold mt-2 "+bc;
+  $("p2").textContent=r.m2_proba_illicit==null?"Probability unavailable":"P(illicit) = "+r.m2_proba_illicit;
+
+  if(r.true_label===null){
+    $("truth").textContent="Unknown / unavailable";
+    $("truth").className="font-bold mt-2 text-yellow-400";
+  }else{
+    $("truth").textContent=r.true_label===1?"🚨 Illicit (ground truth)":"🟢 Licit (ground truth)";
+    $("truth").className="font-bold mt-2 "+(r.true_label===1?"text-red-400":"text-green-400");
+  }
+
+  $("stats").innerHTML=
+    "<div>Transaction: "+r.txId+"</div>"+
+    "<div>Time step: "+(r.time_step??"—")+"</div>"+
+    "<div>In-degree: "+r.in_degree+"</div>"+
+    "<div>Out-degree: "+r.out_degree+"</div>"+
+    "<div>PageRank: "+(r.pagerank==null?"—":r.pagerank)+"</div>"+
+    "<div>In neighbors: "+r.neighbors_in.length+"</div>"+
+    "<div>Out neighbors: "+r.neighbors_out.length+"</div>";
+
+  draw(r);
+}
+
+function draw(r){
+  if(net){try{net.destroy()}catch(e){} net=null;}
+
+  const box=$("network");
+  box.innerHTML="";
+
+  const nodes=[{
+    id:"target",label:"TARGET\n"+r.txId,shape:"dot",size:30,
+    color:{background:"#ef4444",border:"#991b1b"},
+    font:{color:"#fff",size:16}
+  }];
+  const edges=[];
+
+  r.neighbors_in.forEach((x,i)=>{
+    const id="in_"+i;
+    nodes.push({id,label:"IN\n"+x,shape:"dot",size:18,
+      color:{background:"#94a3b8",border:"#475569"},
+      font:{color:"#0f172a",size:12}});
+    edges.push({from:id,to:"target",arrows:"to"});
+  });
+
+  r.neighbors_out.forEach((x,i)=>{
+    const id="out_"+i;
+    nodes.push({id,label:"OUT\n"+x,shape:"dot",size:18,
+      color:{background:"#94a3b8",border:"#475569"},
+      font:{color:"#0f172a",size:12}});
+    edges.push({from:"target",to:id,arrows:"to"});
+  });
+
+  if(nodes.length===1){
+    box.innerHTML='<div class="h-full flex items-center justify-center">No neighbors in exported data.</div>';
+    return;
+  }
+
+  net=new vis.Network(box,
+    {nodes:new vis.DataSet(nodes),edges:new vis.DataSet(edges)},
+    {physics:{enabled:true,barnesHut:{gravitationalConstant:-2200}},
+     interaction:{hover:true,navigationButtons:true,keyboard:true}}
+  );
+}
+
+function loadObject(obj){
+  $("error").classList.add("hidden");
+
+  if(!obj || !Array.isArray(obj.records))
+    throw new Error("The JSON was loaded, but it has no 'records' array.");
+
+  records=obj.records.map(norm).filter(r=>r.txId!==undefined && r.txId!==null);
+  if(!records.length) throw new Error("No records with transaction IDs were found.");
+
+  byId={};
+  records.forEach(r=>byId[String(r.txId).trim()]=r);
+
+  const illicit=records.filter(r=>r.m1_pred===1).length;
+  const graph=records.filter(r=>r.neighbors_in.length||r.neighbors_out.length).length;
+
+  $("n").textContent=records.length;
+  $("illicit").textContent=illicit;
+  $("licit").textContent=records.length-illicit;
+  $("graphn").textContent=graph;
+  $("status").innerHTML='<span class="text-green-400">✅ '+records.length+' records loaded</span>';
+
+  show(records[0]);
+  $("search").value=records[0].txId;
+}
+
+$("file").addEventListener("change",function(){
+  const f=this.files[0];
+  if(!f)return;
+
+  const reader=new FileReader();
+
+  reader.onload=function(){
+    try{
+      loadObject(JSON.parse(reader.result));
+    }catch(e){
+      $("status").innerHTML='<span class="text-red-400">❌ JSON error</span>';
+      $("error").textContent=e.message;
+      $("error").classList.remove("hidden");
+    }
+  };
+
+  reader.onerror=function(){
+    $("error").textContent="Could not read the selected file.";
+    $("error").classList.remove("hidden");
+  };
+
+  reader.readAsText(f);
+});
+
+$("scan").addEventListener("click",function(){
+  const id=$("search").value.trim();
+  const r=byId[id];
+
+  if(!r){
+    $("searchError").textContent="Transaction "+id+" was not found.";
+    $("searchError").classList.remove("hidden");
+    return;
+  }
+
+  $("searchError").classList.add("hidden");
+  show(r);
+});
+
+$("search").addEventListener("keydown",e=>{
+  if(e.key==="Enter") $("scan").click();
+});
+
+$("random").addEventListener("click",function(){
+  if(!records.length){
+    alert("Load dashboard_data.json first.");
+    return;
+  }
+  const r=records[Math.floor(Math.random()*records.length)];
+  $("search").value=r.txId;
+  show(r);
+});
+</script>
+</body>
+</html>
