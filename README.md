@@ -1,4 +1,4 @@
- # Crypto-TMS — Money-Laundering Detection on a Transaction Graph
+# Crypto-TMS — Money-Laundering Detection on a Transaction Graph
 
 ## Group 6
 
@@ -20,7 +20,8 @@ The dashboard is a demonstration interface for inspecting real precomputed test-
 | Method | Illicit Precision | Illicit Recall | Illicit F1 |
 |---|---:|---:|---:|
 | Tabular RF | 0.8026 | 0.7322 | 0.7658 |
-| Graph-Feature RF | **0.8731** | 0.7304 | **0.7954** |
+| Graph-Feature RF (as run, 4 graph features) | **0.8731** | 0.7304 | **0.7954** |
+| Ablation: Graph RF without `neighbor_illicit_frac` (degree, out-degree, PageRank only) | 0.76 | 0.73 | 0.74 |
 
 Split by time period (computed from the exported predictions):
 
@@ -32,7 +33,7 @@ Split by time period (computed from the exported predictions):
 | Steps 43–49 | 169 | Graph-Feature RF | 0.046 | 0.018 | 0.026 |
 
 **Key takeaways**
-- Graph features improve illicit precision and F1 (strongest on steps 35–42).
+- As run, the graph-feature model improves illicit precision and F1, **but the gain comes from `neighbor_illicit_frac`, which is exactly zero for all 16,670 test transactions (verified).** Without it, precision is 0.76 and F1 0.74, slightly below the tabular baseline. We therefore do not claim that graph structure improved detection (see Limitations).
 - Both models detect about 86% of illicit transactions until step 42, then fail almost completely after the step-43 distribution shift.
 - The overall recall of about 0.73 is an average of these two regimes.
 
@@ -72,11 +73,13 @@ Adds structural information from the transaction graph:
 - In-degree
 - Out-degree
 - PageRank
-- Neighborhood illicit fraction (computed from training-period labels only, to avoid label leakage)
+- Neighborhood illicit fraction (computed from training-period labels only, to avoid label leakage; **zero for all test transactions**, see Main finding)
 
 ### Main finding
 
-Adding graph features improved illicit precision from **80.26% to 87.31%** and illicit F1 from **76.58% to 79.54%**. Overall recall stayed approximately unchanged at 73%.
+As run, adding the four graph features improved illicit precision from **80.26% to 87.31%** and illicit F1 from **76.58% to 79.54%**, with overall recall unchanged at about 73%.
+
+**Important caveat (verified by a feature check and an ablation):** `neighbor_illicit_frac` uses only training-period labels, and Elliptic edges connect transactions within the same time step, so the feature is zero for every test transaction. It is non-zero for some training transactions, so the forest learns to use it, and at test time it never fires. This train/test mismatch most likely makes the model more conservative and raises precision. Removing the feature (keeping in-degree, out-degree and PageRank) gives precision 0.76, recall 0.73, F1 0.74 (single run, seed 42), slightly below the tabular baseline. So the reported gain is not evidence that graph structure helps; it is an artifact we found and report.
 
 ### Reading the F1-over-time chart (`f1_over_time.png`)
 
@@ -143,7 +146,7 @@ Notebook → Train models → Generate test predictions → Export dashboard_dat
 5. Show the graph statistics: degree, PageRank, time step.
 6. Explain the comparison:
 
-> The tabular model uses transaction features only. The graph-enhanced model adds structural information from the transaction network. Graph features increased illicit precision from 0.803 to 0.873 and illicit F1 from 0.766 to 0.795. Both models work well until step 42 (recall about 0.86) but fail after the step-43 distribution shift (recall about 0.02).
+> The tabular model uses transaction features only. The graph-enhanced model, as run, raised illicit precision from 0.803 to 0.873 and F1 from 0.766 to 0.795. But we checked and found the neighborhood feature is zero for every test transaction, and an ablation without it gives precision 0.76, below the baseline, so the gain is an artifact and not proof that graph structure helps. Both models also work well until step 42 (recall about 0.86) but fail after the step-43 distribution shift (recall about 0.02).
 
 ---
 
@@ -183,7 +186,7 @@ The test set is imbalanced (Licit: 15,587, Illicit: 1,083), so accuracy alone is
 
 - The illicit class is substantially smaller than the licit class.
 - **Severe temporal distribution shift after step 43:** both models detect almost no illicit transactions in steps 43–49 (recall about 0.02 on 169 illicit transactions). Retraining or domain adaptation would be needed for deployment.
-- The neighborhood-illicit-fraction feature uses only training-period labels, and Elliptic edges connect transactions within the same time step, so this feature is likely zero for test transactions. The precision gain should therefore be attributed mainly to the degree and PageRank features.
+- The neighborhood-illicit-fraction feature is zero for all 16,670 test transactions (verified), so the precision gain (0.803 to 0.873) is most likely a train/test-mismatch artifact. An ablation without it gives precision 0.76 and F1 0.74, below the tabular baseline. A fair evaluation would compute neighborhood features without labels (e.g., aggregating neighbors' transaction features) or use a GCN.
 - Results come from a single run with a fixed random seed (42); variance across seeds is not reported.
 - Graph features are hand-engineered rather than learned end-to-end.
 - The dashboard uses precomputed predictions rather than live model inference.
@@ -209,4 +212,4 @@ Crypto-TMS/
 
 ## Final conclusion
 
-Graph-feature engineering improved illicit precision and F1 over a tabular-only Random Forest, with overall recall roughly unchanged. Both models perform well through time step 42 but fail after the step-43 distribution shift, which shows why temporal evaluation is essential for financial transaction data.
+As run, the graph-feature Random Forest improved illicit precision and F1 over the tabular baseline with recall roughly unchanged. However, the improvement depends on a neighborhood-label feature that is zero at test time; without it, degree and PageRank alone give no gain (precision 0.76, F1 0.74). Both models perform well through time step 42 but fail after the step-43 distribution shift. The project shows why temporal evaluation matters and why engineered features must be checked for consistency between training and test data.
