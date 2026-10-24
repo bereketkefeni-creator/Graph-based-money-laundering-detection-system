@@ -1,4 +1,4 @@
-# Crypto-TMS — Money-Laundering Detection on a Transaction Graph
+ # Crypto-TMS — Money-Laundering Detection on a Transaction Graph
 
 ## Group 6
 
@@ -12,6 +12,29 @@ The dashboard is a demonstration interface for inspecting real precomputed test-
 
 ![Crypto-TMS dashboard screenshot](dashboard-screenshot.png)
 *Live view: 16,670 real test-set transactions loaded, with per-model verdicts, transaction lookup, and a 1-hop neighbor graph.*
+
+---
+
+## Results at a glance
+
+| Method | Illicit Precision | Illicit Recall | Illicit F1 |
+|---|---:|---:|---:|
+| Tabular RF | 0.8026 | 0.7322 | 0.7658 |
+| Graph-Feature RF | **0.8731** | 0.7304 | **0.7954** |
+
+Split by time period (computed from the exported predictions):
+
+| Test period | Illicit in test | Model | Precision | Recall | F1 |
+|---|---:|---|---:|---:|---:|
+| Steps 35–42 | 914 | Tabular RF | 0.894 | 0.864 | 0.879 |
+| Steps 35–42 | 914 | Graph-Feature RF | 0.937 | 0.862 | 0.898 |
+| Steps 43–49 | 169 | Tabular RF | 0.029 | 0.018 | 0.022 |
+| Steps 43–49 | 169 | Graph-Feature RF | 0.046 | 0.018 | 0.026 |
+
+**Key takeaways**
+- Graph features improve illicit precision and F1 (strongest on steps 35–42).
+- Both models detect about 86% of illicit transactions until step 42, then fail almost completely after the step-43 distribution shift.
+- The overall recall of about 0.73 is an average of these two regimes.
 
 ---
 
@@ -42,12 +65,6 @@ This prevents future transactions from being randomly mixed into the training da
 
 Uses the original transaction-level features.
 
-Test performance for the illicit class:
-
-- Precision: **0.8026**
-- Recall: **0.7322**
-- F1: **0.7658**
-
 ### Method 2 — Graph-Feature Random Forest
 
 Adds structural information from the transaction graph:
@@ -55,29 +72,21 @@ Adds structural information from the transaction graph:
 - In-degree
 - Out-degree
 - PageRank
-- Neighborhood illicit fraction
-
-Test performance for the illicit class:
-
-- Precision: **0.8731**
-- Recall: **0.7304**
-- F1: **0.7954**
+- Neighborhood illicit fraction (computed from training-period labels only, to avoid label leakage)
 
 ### Main finding
 
-Adding graph features improved illicit precision from **80.26% to 87.31%** and illicit F1 from **76.58% to 79.54%**. Recall remained approximately unchanged at 73%.
-
-This means graph structure helped the model make more precise illicit predictions, but it did not substantially increase the number of illicit transactions detected. A likely reason recall didn't move: the illicit transactions both models still miss tend to look structurally ordinary (typical in-degree/out-degree/PageRank), so graph features sharpen confidence on cases that already look suspicious rather than surfacing new ones.
+Adding graph features improved illicit precision from **80.26% to 87.31%** and illicit F1 from **76.58% to 79.54%**. Overall recall stayed approximately unchanged at 73%.
 
 ### Reading the F1-over-time chart (`f1_over_time.png`)
 
-The chart shows illicit F1 falling to near zero after time step 43 for both methods. **This is not the models breaking** — it's a small-sample artifact. The count of illicit-labeled transactions per test time step drops sharply in the same window:
+Illicit F1 is high through time step 42 and then falls to near zero from step 43 onward for both methods. **This is a genuine temporal distribution shift, not only a small-sample artifact.**
 
-| Time step | 40 | 41 | 42 | 43 | 44 | 45 | 46 | 47 |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| Illicit count | 112 | 116 | 239 | **24** | **24** | **5** | **2** | 22 |
+| Time step | 40 | 41 | 42 | 43 | 44 | 45 | 46 | 47 | 48 | 49 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Illicit count | 112 | 116 | 239 | 24 | 24 | 5 | 2 | 22 | 36 | 56 |
 
-With as few as 2–5 positive examples in a step, a single misclassification swings F1 by 20–50 percentage points, so F1 becomes statistically unstable rather than meaningful. This scarcity likely reflects a genuine drop in illicit activity late in the Elliptic timeline, not a bug in the pipeline. Treat the whole-test-set numbers in the table above (dominated by the earlier, well-populated steps) as the headline result, and treat the post-step-43 portion of the F1 chart as evidence of *when metrics stop being trustworthy*, not evidence of model failure.
+Individual late steps have few illicit examples, so per-step F1 is noisy. But pooled over steps 43–49 there are 169 illicit transactions, and both models recall only about 1.8% of them. Models trained on steps 1–34 do not generalize to the later period (consistent with the known step-43 shift in the Elliptic data). The aggregate recall of about 0.73 is an average of about 0.86 before step 43 and about 0.02 after it.
 
 ---
 
@@ -85,97 +94,30 @@ With as few as 2–5 positive examples in a step, a single misclassification swi
 
 ## Option B: Standalone Dashboard
 
-The submitted standalone dashboard is designed to work without Live Server and without requiring the browser to fetch a local JSON file automatically.
+The standalone dashboard works without Live Server and without the browser fetching a local JSON file automatically. An internet connection is needed because the page loads Tailwind and vis-network from a CDN.
 
 ### Files that must be together
 
-Put these two files in the same folder:
-
-```text
+```
 Crypto-TMS-dashboard.html
 dashboard_data.json
 ```
-
-You may also keep the notebook, CSV, image, and report in the same project folder.
 
 ### Step 1 — Open the dashboard
-
-Double-click:
-
-```text
-Crypto-TMS-dashboard.html
-```
-
-It will open in a browser.
+Double-click `Crypto-TMS-dashboard.html`. It opens in a browser.
 
 ### Step 2 — Load the real project data
-
-At the top of the dashboard, click:
-
-```text
-Choose File
-```
-
-Select:
-
-```text
-dashboard_data.json
-```
-
-from the project folder.
-
-The dashboard should then show:
-
-```text
-16670 records loaded
-```
-
-and populate the summary cards.
+Click **Choose File** and select `dashboard_data.json` from the project folder. The dashboard should show `16670 records loaded` and populate the summary cards.
 
 ### Step 3 — Select a transaction
-
-There are two ways:
-
-#### Random Transaction
-
-Click:
-
-```text
-Random Transaction
-```
-
-The dashboard selects one test transaction automatically.
-
-#### Transaction Lookup
-
-Enter a transaction ID in the Transaction Lookup box and click:
-
-```text
-Scan
-```
-
-The transaction must exist in the exported test-set records.
+- **Random Transaction:** click the button to pick one test transaction automatically.
+- **Transaction Lookup:** enter a transaction ID and click **Scan**. The transaction must exist in the exported test-set records.
 
 ### Step 4 — Inspect the model verdicts
-
-The dashboard displays:
-
-- Method 1 — Tabular Random Forest verdict
-- Method 2 — Graph-Feature Random Forest verdict
-- Ground-truth test label
-- Illicit probability for each model
+The dashboard displays the Method 1 verdict, the Method 2 verdict, the ground-truth test label, and the illicit probability for each model.
 
 ### Step 5 — Inspect graph information
-
-The dashboard displays:
-
-- Time step
-- In-degree
-- Out-degree
-- PageRank
-- One-hop transaction neighbors
-
-The graph visualization shows the selected transaction and its exported neighboring transactions.
+The dashboard displays time step, in-degree, out-degree, PageRank, and one-hop transaction neighbors (up to 5 incoming and 5 outgoing are exported).
 
 ---
 
@@ -183,176 +125,77 @@ The graph visualization shows the selected transaction and its exported neighbor
 
 The dashboard is a **forensic demonstration interface**, not an autonomous financial decision system.
 
-The model predictions are **precomputed** from the notebook and exported into `dashboard_data.json`.
+The model predictions are **precomputed** in the notebook and exported into `dashboard_data.json`. The dashboard does not retrain the models in the browser.
 
-The dashboard does not retrain the Random Forest models in the browser.
-
-Therefore:
-
-```text
-Notebook
-   ↓
-Train models
-   ↓
-Generate test predictions
-   ↓
-Export dashboard_data.json
-   ↓
-Dashboard loads the exported results
-   ↓
-User investigates transactions
+```
+Notebook → Train models → Generate test predictions → Export dashboard_data.json
+→ Dashboard loads the exported results → User investigates transactions
 ```
 
 ---
 
-# 5. How the Instructor Can Demonstrate the Project
+# 5. How to Demonstrate the Project (2–3 minutes)
 
-The instructor can demonstrate the project in approximately 2–3 minutes:
+1. Open `Crypto-TMS-dashboard.html`.
+2. Click **Choose File**, select `dashboard_data.json`, and confirm `16670 records loaded`.
+3. Click **Random Transaction**.
+4. Show the transaction ID, Tabular RF prediction, Graph-Feature RF prediction, and ground truth.
+5. Show the graph statistics: degree, PageRank, time step.
+6. Explain the comparison:
 
-### Step 1
-Open:
-
-```text
-Crypto-TMS-dashboard.html
-```
-
-### Step 2
-Click **Choose File** and select:
-
-```text
-dashboard_data.json
-```
-
-Confirm that:
-
-```text
-16670 records loaded
-```
-
-appears.
-
-### Step 3
-Click **Random Transaction**.
-
-### Step 4
-Show the:
-
-- Transaction ID
-- Tabular RF prediction
-- Graph-Feature RF prediction
-- Ground truth
-
-### Step 5
-Show the graph statistics:
-
-- Degree
-- PageRank
-- Time step
-
-### Step 6
-Explain the comparison:
-
-> The tabular model uses transaction features only. The graph-enhanced model adds structural information from the transaction network. Graph features increased illicit precision from 0.803 to 0.873 and illicit F1 from 0.766 to 0.795.
+> The tabular model uses transaction features only. The graph-enhanced model adds structural information from the transaction network. Graph features increased illicit precision from 0.803 to 0.873 and illicit F1 from 0.766 to 0.795. Both models work well until step 42 (recall about 0.86) but fail after the step-43 distribution shift (recall about 0.02).
 
 ---
 
 # 6. How to Reproduce the Machine-Learning Experiment
 
-Open:
+Open `elliptic_money_laundering_detection.ipynb` and run the cells in order.
 
-```text
-elliptic_money_laundering_detection.ipynb
 ```
-
-Run the notebook cells in order.
-
-The main workflow is:
-
-```text
-Load Elliptic data
-       ↓
-Clean and align transactions
-       ↓
-Temporal train/test split
-       ↓
-Train Tabular Random Forest
-       ↓
-Build transaction graph
-       ↓
-Compute graph features
-       ↓
-Train Graph-Feature Random Forest
-       ↓
-Evaluate precision / recall / F1
-       ↓
-Evaluate F1 over time
-       ↓
-Export dashboard predictions
+Load Elliptic data → Clean and align transactions → Temporal train/test split
+→ Train Tabular Random Forest → Build transaction graph → Compute graph features
+→ Train Graph-Feature Random Forest → Evaluate precision / recall / F1
+→ Evaluate F1 over time → Export dashboard predictions
 ```
-
-The core models are evaluated on future test time steps rather than a random sample.
 
 ---
 
 # 7. Why Temporal Evaluation Matters
 
-Random splitting would allow transactions from later periods to appear in training while earlier transactions appear in testing. That can produce an unrealistically optimistic estimate.
+Random splitting would let later transactions appear in training while earlier ones appear in testing, giving unrealistically optimistic estimates. A temporal split better represents deployment:
 
-A temporal split better represents deployment:
-
-```text
+```
 Past transactions → training
 Future transactions → testing
 ```
 
-This is especially important for illicit-transaction detection because transaction behavior can change over time.
-
-The notebook evaluates illicit F1 by test time step and examines the distribution-shift behavior in the later timeline.
+The step-43 collapse above is exactly the kind of failure a random split would hide.
 
 ---
 
 # 8. Evaluation
 
-The test set is imbalanced:
-
-```text
-Licit:    15,587
-Illicit:   1,083
-```
-
-Therefore, accuracy alone is not sufficient.
-
-The most important metrics are:
-
-- Illicit precision
-- Illicit recall
-- Illicit F1
-
-### Final comparison
-
-| Method | Illicit Precision | Illicit Recall | Illicit F1 |
-|---|---:|---:|---:|
-| Tabular RF | 0.8026 | 0.7322 | 0.7658 |
-| Graph-Feature RF | **0.8731** | 0.7304 | **0.7954** |
+The test set is imbalanced (Licit: 15,587, Illicit: 1,083), so accuracy alone is not sufficient. The key metrics are illicit precision, recall, and F1 (see the results table above).
 
 ---
 
 # 9. Project Limitations
 
 - The illicit class is substantially smaller than the licit class.
-- Future transaction behavior can differ from historical training behavior. In particular, illicit-labeled transactions per test time step drop to single digits after time step 43, which makes illicit F1 highly volatile late in the test window — a small-sample effect layered on top of genuine temporal shift, not a sign the models fail outright.
+- **Severe temporal distribution shift after step 43:** both models detect almost no illicit transactions in steps 43–49 (recall about 0.02 on 169 illicit transactions). Retraining or domain adaptation would be needed for deployment.
+- The neighborhood-illicit-fraction feature uses only training-period labels, and Elliptic edges connect transactions within the same time step, so this feature is likely zero for test transactions. The precision gain should therefore be attributed mainly to the degree and PageRank features.
+- Results come from a single run with a fixed random seed (42); variance across seeds is not reported.
 - Graph features are hand-engineered rather than learned end-to-end.
-- The dashboard uses precomputed predictions rather than performing live model inference.
-- The system is a research/educational prototype and should not be treated as a production AML decision system.
-- A GCN is an optional extension and is not required for the core two-model comparison.
+- The dashboard uses precomputed predictions rather than live model inference.
+- The system is a research/educational prototype and not a production AML decision system.
+- A GCN is an optional extension and is not part of the core two-model comparison.
 
 ---
 
 # 10. Recommended Submission Files
 
-```text
+```
 Crypto-TMS/
-│
 ├── elliptic_money_laundering_detection.ipynb
 ├── Crypto-TMS-dashboard.html
 ├── dashboard_data.json
@@ -366,4 +209,4 @@ Crypto-TMS/
 
 ## Final conclusion
 
-The project demonstrates that transaction-network structure provides additional predictive information beyond tabular transaction features. The graph-feature Random Forest improved illicit-class precision and F1 while maintaining approximately the same recall. Temporal evaluation is essential because financial transaction behavior can shift over time.
+Graph-feature engineering improved illicit precision and F1 over a tabular-only Random Forest, with overall recall roughly unchanged. Both models perform well through time step 42 but fail after the step-43 distribution shift, which shows why temporal evaluation is essential for financial transaction data.
