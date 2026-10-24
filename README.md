@@ -10,7 +10,7 @@ Crypto-TMS is a compliance/forensics dashboard built around the Elliptic Bitcoin
 
 The dashboard is a demonstration interface for inspecting real precomputed test-set predictions and transaction-network structure.
 
-![Crypto-TMS dashboard screenshot](dashboard screenshot.png)
+![Crypto-TMS dashboard screenshot](dashboard-screenshot.png)
 *Live view: 16,670 real test-set transactions loaded, with per-model verdicts, transaction lookup, and a 1-hop neighbor graph.*
 
 ---
